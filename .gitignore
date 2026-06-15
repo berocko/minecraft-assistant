@@ -1,0 +1,16 @@
+# Knowledge base (generated per-user, per-instance)
+knowledge/sources/
+knowledge/lang/
+knowledge/index.json
+knowledge/.build-meta.json
+knowledge/tmp/
+knowledge/*.bak
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor
+*.swp
+*.swo
+*~
