@@ -7,7 +7,21 @@ description: Minecraft 模组游戏助手，回答 GregTech/GTNH 等整合包的
 
 ## 快速开始
 
-用户通过 `/mc` 或直接描述问题触发：
+### 安装
+
+```bash
+git clone https://github.com/berocko/minecraft-assistant.git ~/.claude/skills/minecraft-assistant
+cd ~/.claude/skills/minecraft-assistant
+bash setup.sh    # 一键安装 Java/CFR/Node.js 等所有依赖
+```
+
+### 构建知识库
+
+```bash
+bash build-knowledge.sh "/path/to/.minecraft"
+```
+
+### 提问
 
 ```
 /mc GTNH里高级电路板怎么合成？
@@ -54,7 +68,7 @@ Phase 3:  外科手术式精准重建 (本地检索失败 or 玩家否定时)
 - `1` = 缺少必需依赖（Java / CFR / 基础工具）→ 停止，告知用户如何安装
 - `2` = 部分就绪（如缺少 Node.js）→ 警告后可降级运行
 
-**环境不满足时，** 告知用户缺了什么和安装命令，**不要继续后续 Phase**。
+**环境不满足时，** 自动提示运行 `bash setup.sh` 一键安装缺失依赖，**不要继续后续 Phase**。
 
 ```
 环境报告示例:
