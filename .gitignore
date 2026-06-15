@@ -1,10 +1,5 @@
-# Knowledge base (generated per-user, per-instance)
-knowledge/sources/
-knowledge/lang/
-knowledge/index.json
-knowledge/.build-meta.json
-knowledge/tmp/
-knowledge/*.bak
+# Knowledge bases (per-instance, generated — never committed)
+knowledge/*/
 
 # OS junk
 .DS_Store

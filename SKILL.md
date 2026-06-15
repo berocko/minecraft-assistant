@@ -15,32 +15,78 @@ description: Minecraft 模组游戏助手，回答 GregTech/GTNH 等整合包的
 /mc 铝从矿石到锭的完整生产链
 ```
 
-## 实例配置
+## 工作流总览
 
-首次使用前，用户需告知 Minecraft 实例路径（如 PrismLauncher 的 instances 目录）。
-skill 会自动检测 `.minecraft/mods/`、`.minecraft/config/` 等目录。
+```
+Phase -1: 环境预检 (每次调用前自动运行，<1秒)
+   ↓
+Phase 0:  知识库构建 (首次 / mods 变更时)
+   ↓
+Phase 1:  网络搜索 (每次查询)
+   ↓
+Phase 2:  本地知识库检索 (网络低置信度时)
+   ↓
+Phase 3:  外科手术式精准重建 (本地检索失败 or 玩家否定时)
+```
 
-默认查找路径（按优先级）：
-1. 用户明确指定的路径
-2. `~/Library/Application Support/PrismLauncher/instances/` 下的实例
-3. 其他常见启动器路径
+---
 
-## 工作流
+### Phase -1: 环境预检（每次 skill 调用前自动运行）
+
+**必须首先运行** `scripts/check-env.sh [instance_path]`，检测以下所有项：
+
+| 检测项 | 要求 | 缺失时的影响 |
+|--------|------|-------------|
+| **操作系统** | macOS / Linux / Windows (WSL) | 确定路径约定 |
+| **CPU 架构** | arm64 / x86_64 | 确定 Homebrew 路径 (`/opt/homebrew` vs `/usr/local`) |
+| **Java** | ≥ 17 | CFR 反编译器必需，无 Java 则无法构建知识库 |
+| **CFR Decompiler** | 已安装 | 无 CFR 则无法反编译 jar → 配方提取不可用 |
+| **Node.js** | 任意版本 | 仅构建 index.json 需要；缺失时可降级（跳过索引，仅用 grep） |
+| **基础工具** | grep, find, unzip, strings, shasum | 扫描 jar/config 必需 |
+| **Minecraft 启动器** | PrismLauncher / MultiMC / 官方 | 自动发现实例路径 |
+| **实例** | 至少 1 个含 mods 目录的实例 | 无语境无法回答任何问题 |
+| **磁盘空间** | ≥ 2GB 可用 | 反编译 241 个 mod 约需 500MB-1GB |
+
+**输出：** JSON 格式报告，包含 `ready: true/false`、`issues: [...]`、`instances: [...]`
+
+**退出码：**
+- `0` = 就绪
+- `1` = 缺少必需依赖（Java / CFR / 基础工具）→ 停止，告知用户如何安装
+- `2` = 部分就绪（如缺少 Node.js）→ 警告后可降级运行
+
+**环境不满足时，** 告知用户缺了什么和安装命令，**不要继续后续 Phase**。
+
+```
+环境报告示例:
+  OS:     Darwin 25.4.0 (arm64)
+  Java:   25 — ✓
+  CFR:    ✓ v0.152
+  Node:   ✓ v22.5.1
+  Tools:  ✓ all present
+  Launcher: PrismLauncher — ✓
+  Instances: GTNH2.9.0 (242 mods, 12154 configs)
+  Disk: 52341MB — ✓ sufficient
+  ✅ Environment ready
+```
 
 ### Phase 0: 知识库构建（首次 / mods 变更时触发）
 
+**前置条件：** Phase -1 通过（`ready: true`）
+
 **触发条件：**
-- `~/.claude/skills/minecraft-assistant/knowledge/.build-meta.json` 不存在
-- 或检测到 mods 目录的 jar 比 meta 文件更新
+- `knowledge/.build-meta.json` 不存在
+- 或检测到 mods 目录的 jar 文件有增删（数量变化或 checksum 变化）
 
-**操作流程：**
-1. 解析实例路径，定位 `mods/`、`config/`、`.lang` 文件
-2. 运行 CFR 反编译：对所有 jar 中名字包含 `Recipe|Loader|Registry` 的 class 进行反编译
-3. 解析 lang 文件：将 `.lang` 转为 JSONL 格式（只保留用户当前语言）
-4. 构建索引：生成 `index.json` 包含物品→配方→用途的映射
-5. 写入 `.build-meta.json` 指纹
+**操作：** 运行 `build-knowledge.sh <instance_path>`，该脚本自动完成：
+1. 扫描所有 jar，列出名字含 `Recipe|Loader|Registry` 的 class
+2. CFR 批量反编译 → `knowledge/sources/<mod>/`
+3. 解析 `.lang` 文件 → `knowledge/lang/<lang>.jsonl`
+4. 调用 `scripts/build-index.js` 生成 `knowledge/index.json`
+5. 写入 `knowledge/.build-meta.json`（含 jar checksums）
 
-详见 BUILD.md。
+**耗时：** ~5-10 分钟（241 个 mod，~3000 个 recipe class）
+
+**降级模式（无 Node.js）：** 跳过步骤 4，知识库仅含反编译源码 + lang JSONL，检索时直接用 grep + Read 源码。
 
 ### Phase 1: 网络搜索（每次查询先走这里）
 
@@ -117,3 +163,20 @@ skill 会自动检测 `.minecraft/mods/`、`.minecraft/config/` 等目录。
 | `scripts/build-index.js` | 索引构建器 |
 
 详见 REFERENCE.md 了解完整数据结构。
+
+## 多实例支持
+
+每个 Minecraft 实例拥有**独立的知识库**，存储在 `knowledge/<instance_slug>/`：
+
+```
+knowledge/
+├── GTNH2.9.0/
+│   ├── .build-meta.json   # 含 Java 版本、实例路径、jar checksums
+│   ├── index.json
+│   ├── sources/
+│   └── lang/
+├── GT_New_Horizons_2.8.4/
+│   └── ...
+```
+
+Java 版本**从启动器配置读取**（如 PrismLauncher 的 `instance.cfg` 中的 `JavaPath`），不使用系统全局 Java。
