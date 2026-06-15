@@ -3,7 +3,8 @@
 # Minecraft Assistant — 一键环境安装
 # 自动检测并安装所有缺失的依赖。
 #
-# 用法: setup.sh
+# 用法: setup.sh [-y]
+#   -y  非交互模式（skill 自动调用时使用）
 # ───────────────────────────────────────────────────
 
 set -euo pipefail
@@ -54,19 +55,28 @@ echo ""
 if [ -z "$INSTALL_CMD" ] && [ "$PKG_MANAGER" != "Homebrew" ]; then
   # On macOS, Homebrew can be installed
   if [ "$OS" = "Darwin" ]; then
-    echo "Homebrew not found. Install it first:"
-    echo "  /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
-    echo ""
-    read -rp "Install Homebrew now? [y/N] " ans
-    if [[ "$ans" =~ ^[Yy] ]]; then
-      /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    if $AUTO_YES; then
+      echo "Homebrew not found. Auto-installing..."
+      /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true
       if [ -f /opt/homebrew/bin/brew ]; then
         eval "$(/opt/homebrew/bin/brew shellenv)"
         INSTALL_CMD="brew install"
       fi
     else
-      echo "Cannot auto-install without a package manager. Exiting."
-      exit 1
+      echo "Homebrew not found. Install it first:"
+      echo "  /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+      echo ""
+      read -rp "Install Homebrew now? [y/N] " ans
+      if [[ "$ans" =~ ^[Yy] ]]; then
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        if [ -f /opt/homebrew/bin/brew ]; then
+          eval "$(/opt/homebrew/bin/brew shellenv)"
+          INSTALL_CMD="brew install"
+        fi
+      else
+        echo "Cannot auto-install without a package manager. Exiting."
+        exit 1
+      fi
     fi
   fi
 fi
@@ -131,6 +141,12 @@ else
   NEED_INSTALL+=("coreutils:shasum:brew install coreutils")
 fi
 
+# ─── 检查是否非交互模式 ───
+AUTO_YES=false
+if [ "${1:-}" = "-y" ] || [ "${1:-}" = "--yes" ]; then
+  AUTO_YES=true
+fi
+
 echo ""
 
 # ─── 安装缺失的依赖 ───
@@ -148,11 +164,16 @@ else
     echo "  - $name ($pkg)"
   done
 
-  echo ""
-  read -rp "Install now? [Y/n] " ans
-  if [[ "$ans" =~ ^[Nn] ]]; then
-    echo "Skipped. Run: $SCRIPT_DIR/setup.sh to try again."
-    exit 1
+  if $AUTO_YES; then
+    echo ""
+    echo "Non-interactive mode: auto-installing..."
+  else
+    echo ""
+    read -rp "Install now? [Y/n] " ans
+    if [[ "$ans" =~ ^[Nn] ]]; then
+      echo "Skipped. Run: $SCRIPT_DIR/setup.sh to try again."
+      exit 1
+    fi
   fi
 
   echo ""

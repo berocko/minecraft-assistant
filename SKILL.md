@@ -45,30 +45,40 @@ Phase 3:  外科手术式精准重建 (本地检索失败 or 玩家否定时)
 
 ---
 
-### Phase -1: 环境预检（每次 skill 调用前自动运行）
+### Phase -1: 环境预检（每次 skill 调用前自动运行，<1秒）
 
-**必须首先运行** `scripts/check-env.sh [instance_path]`，检测以下所有项：
+**第一步：运行检测**
 
-| 检测项 | 要求 | 缺失时的影响 |
-|--------|------|-------------|
-| **操作系统** | macOS / Linux / Windows (WSL) | 确定路径约定 |
-| **CPU 架构** | arm64 / x86_64 | 确定 Homebrew 路径 (`/opt/homebrew` vs `/usr/local`) |
-| **Java** | ≥ 17 | CFR 反编译器必需，无 Java 则无法构建知识库 |
-| **CFR Decompiler** | 已安装 | 无 CFR 则无法反编译 jar → 配方提取不可用 |
-| **Node.js** | 任意版本 | 仅构建 index.json 需要；缺失时可降级（跳过索引，仅用 grep） |
-| **基础工具** | grep, find, unzip, strings, shasum | 扫描 jar/config 必需 |
-| **Minecraft 启动器** | PrismLauncher / MultiMC / 官方 | 自动发现实例路径 |
-| **实例** | 至少 1 个含 mods 目录的实例 | 无语境无法回答任何问题 |
-| **磁盘空间** | ≥ 2GB 可用 | 反编译 241 个 mod 约需 500MB-1GB |
+执行 `scripts/check-env.sh` 检测系统环境。读取其 JSON 输出的 `ready` 和 `issues` 字段。
 
-**输出：** JSON 格式报告，包含 `ready: true/false`、`issues: [...]`、`instances: [...]`
+**第二步：自动修复缺失依赖**
 
-**退出码：**
-- `0` = 就绪
-- `1` = 缺少必需依赖（Java / CFR / 基础工具）→ 停止，告知用户如何安装
-- `2` = 部分就绪（如缺少 Node.js）→ 警告后可降级运行
+如果 `ready: false` 或 `issues` 非空 — **不要直接报错，自动修复：**
 
-**环境不满足时，** 自动提示运行 `bash setup.sh` 一键安装缺失依赖，**不要继续后续 Phase**。
+1. 告知用户："检测到 N 个依赖缺失，正在自动安装..."
+2. **直接运行** `bash setup.sh -y`（非交互模式，自动确认所有安装）
+3. setup.sh 会自动检测 OS → 选包管理器 → 安装 Java 21 / CFR / Node.js
+4. 安装完成后**重新运行** `scripts/check-env.sh` 验证
+
+**第三步：确认就绪后继续**
+
+只有 `ready: true` 时才进入 Phase 0。
+
+如果自动安装失败（非 macOS/Linux、无网络、无权限），**直接执行安装命令提示用户手动操作**：
+
+```bash
+# macOS
+brew install openjdk@21 cfr-decompiler node
+
+# Ubuntu/Debian
+sudo apt-get install -y openjdk-21-jdk nodejs npm
+# CFR 需手动下载: https://www.benf.org/other/cfr/
+```
+
+**退出码处理：**
+- `0` = 就绪 → 继续 Phase 0
+- `1` = 缺少必需依赖 → 自动 `bash setup.sh` → 再检测 → 仍失败则停止并给出安装命令
+- `2` = 部分就绪（如缺少 Node.js）→ 警告用户索引构建不可用，可降级运行
 
 ```
 环境报告示例:
