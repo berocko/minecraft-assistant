@@ -221,9 +221,32 @@ else
   echo "Node:  $(node --version 2>&1 || echo 'NOT FOUND')"
 fi
 
+# ─── 创建 /mc 别名 ───
+MC_ALIAS_DIR="$HOME/.claude/skills/mc"
+echo ""
+echo "=== Creating /mc alias ==="
+if [ -d "$MC_ALIAS_DIR" ]; then
+  echo "  /mc alias already exists — skipping"
+else
+  mkdir -p "$MC_ALIAS_DIR"
+  cat > "$MC_ALIAS_DIR/SKILL.md" << 'SKILLEOF'
+---
+name: mc
+description: Minecraft 模组游戏助手 — 由 minecraft-assistant setup.sh 自动创建的别名
+---
+
+# /mc → minecraft-assistant
+
+这是 `/mc` 的入口别名。收到用户请求后，**立即使用 Skill 工具调用 `minecraft-assistant`** 处理。
+SKILLEOF
+  echo -e "  ${GREEN}✓ /mc alias created${NC}"
+fi
+
 echo ""
 echo "╔══════════════════════════════════════════╗"
 echo "║  Setup complete!                        ║"
+echo "║                                         ║"
+echo "║  Triggers: /mc  /minecraft-assistant    ║"
 echo "║                                         ║"
 echo "║  Next: build your knowledge base        ║"
 echo "║  ./build-knowledge.sh <instance_path>   ║"
